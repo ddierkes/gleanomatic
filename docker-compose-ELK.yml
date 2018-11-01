@@ -1,0 +1,39 @@
+version: '2.1'
+
+services:
+
+  elasticsearch:
+    image: elasticsearch:2.4.1
+    environment:
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms${ES_JVM_HEAP} -Xmx${ES_JVM_HEAP}"
+    mem_limit: ${ES_MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      - 9201:9200
+      
+  logstash:
+    image: docker.elastic.co/logstash/logstash:6.4.2
+    command: logstash -e 'input { stdin {  } http { port => 8080 } } filter { json { source => "message"  }} output { elasticsearch { hosts => [ "elasticsearch" ] index => "elk-data-%{+YYYY.MM.dd}" } stdout { } }'
+    ports:
+      - "8181:8080"
+
+  kibana:
+    image: kibana:4.5.1
+    hostname: kibana
+    depends_on:
+      - elasticsearch
+      - logstash
+    ports:
+      - 5601:5601
+      
+volumes:
+  esdata:
+    driver: local

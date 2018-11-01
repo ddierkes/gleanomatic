@@ -1,1 +1,0 @@
-# static directory for Resourcesync

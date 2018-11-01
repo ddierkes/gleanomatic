@@ -11,8 +11,10 @@ RUN apk add --no-cache \
     rm -r /usr/lib/python*/ensurepip && \
     pip3 install --upgrade pip setuptools && \
     rm /etc/nginx/conf.d/default.conf && \
-    rm -r /root/.cache && \
-    mkdir -p /gleanomatic
+    rm -r /root/.cache 
+
+ENV PYTHONPATH "$PYTHONPATH:/app"
+
 
 # Copy the Nginx global conf
 COPY nginx.conf /etc/nginx/
@@ -23,10 +25,9 @@ COPY uwsgi.ini /etc/uwsgi/
 # Custom Supervisord config
 COPY supervisord.conf /etc/supervisord.conf
 
-COPY ./scripts /gleanomatic/scripts
-
 # Add app
 COPY ./app /app
+
 WORKDIR /app
 
 RUN  pip3 install -r requirements.txt

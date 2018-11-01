@@ -1,10 +1,10 @@
 version: '2.1'
 services:
   resourcesync:
-    image: climatewalker/rsengine:1.0.5
+    image: climatewalker/rsengine:1.1.5
     volumes:
       - rs-vol1:/app/data
-      - ${RS_PATH}:/app/static
+      - rs-static:/app/static
     ports:
       - "81:80"
     environment:
@@ -15,11 +15,75 @@ services:
       - HASH_ALGORITHM=md5
       - RESOURCE_UNIT=1000
       - DATE_UNIT=day
+      - STATIC_FILES=/app/static/
+      - USER_AGENT=${USER_AGENT}
       - 'RUN=flask run --host=0.0.0.0 --port=80'
-  webservices:
-    build: ./webServices
+    networks:
+      - gleanomatic
+      
+  transformservices:
+    build: ${TRANSFORM_PATH}
+    volumes:
+      - ${LOG_PATH}:${LOG_DEST}
+      - ${TRANSFORM_PATH}/app:/app
+    environment:
+      - LOG_DEST=${LOG_DEST}
+      - LOG_FILE=${LOG_FILE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - LOG_URL=${LOG_URL}
+      - TRANSFORM_URI=${TRANSFORM_URI}
+      - USER_AGENT=${USER_AGENT}
     ports:
       - "82:80"
+    networks:
+      - gleanomatic
+      
+  elasticsearch:
+    image: elasticsearch:2.4.1
+    hostname: elasticsearch
+    environment:
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms${ES_JVM_HEAP} -Xmx${ES_JVM_HEAP}"
+    mem_limit: ${ES_MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      - 9201:9200
+    networks:
+      - gleanomatic
+      
+  logstash:
+    image: docker.elastic.co/logstash/logstash:6.4.2
+    hostname: logstash
+    command: logstash -e 'input { stdin {  } http { port => 8080 } } filter { json { source => "message"  }} output { elasticsearch { hosts => [ "elasticsearch" ] index => "elk-data-%{+YYYY.MM.dd}" } stdout { } }'
+    ports:
+      - "8181:8080"
+    networks:
+      - gleanomatic
+
+  kibana:
+    image: kibana:4.5.1
+    hostname: kibana
+    depends_on:
+      - elasticsearch
+      - logstash
+    ports:
+      - 5601:5601
+    networks:
+      - gleanomatic
    
 volumes:
     rs-vol1:
+    rs-static:
+    esdata:
+      driver: local
+
+networks:
+    gleanomatic:
+        driver: bridge

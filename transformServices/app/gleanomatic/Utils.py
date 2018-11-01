@@ -1,12 +1,13 @@
 # Common Utils
 import urllib
-from datetime import datetime
 import certifi
 from urllib3 import PoolManager
 import json
 from gleanomatic.GleanomaticErrors import URIException, PostDataException
 from gleanomatic.configure import appConfig
+import gleanomatic.gleanomaticLogger as gl
 
+logger = gl.logger
 userAgent = appConfig.userAgent
 hdrs = {"User-Agent": userAgent}
 
@@ -25,84 +26,32 @@ def checkURI(uri):
             return False
         return True
 
-def getCurrentBatchTimestamp():
-    return getBatchTimestamp()
-    
-    
-def getBatchTimestamp(isoDate=None):
-    if not isoDate:
-        date = datetime.now()
-    else:
-        date = datetime.strptime(isoDate,'%Y-%m-%dT%H:%M:%S')
-    return str(date.year)+str(date.month).zfill(2)+str(date.day).zfill(2)+str(date.hour).zfill(2)+str(date.minute).zfill(2)
-
 def validateRequired(opts,required):
     for key in required:
         if key not in opts:
             raise ValueError(str(key) + " is required!")
     return True
-    
-def postToLog(log):
-    print(log)
-    encoded_body = json.dumps(log)
-    response = None
-    try:
-        response = manager.request('POST', appConfig.logURL,
-                 headers={'Content-Type': 'application/json'},
-                 body=encoded_body,timeout=10)
-    except Exception as e:
-        print(str(e))
-    return True
-            
 
 def postRSData(url,params):
      response = None
      try:
-         response = manager.request('POST',url,fields=params,headers=hdrs,timeout=30)
+         response = manager.request('POST',url,fields=params,headers=hdrs,timeout=4.0)
      except ValueError as e:
          raise PostDataException("Could not post data for url: " + str(url) + " ERROR: " + str(e))   
      except urllib.error.HTTPError as e:
          raise PostDataException("Could not post data for url: " + str(url) + " ERROR: " + str(e))   
      except urllib.error.URLError as e:
          raise PostDataException("Could not post data for url: " + str(url) + " ERROR: " + str(e))
-     except Exception as e:
-         print(str(e))
-         return True
-     if not response:
-         return True
-     return response
-     
-def deleteContent(url):
-     response = None
-     try:
-         response = manager.request('DELETE',url,headers=hdrs,timeout=10.0)
-     except ValueError as e:
-         raise PostDataException("Could not delete url: " + str(url) + " ERROR: " + str(e))   
-     except urllib.error.HTTPError as e:
-         raise PostDataException("Could not delete url: " + str(url) + " ERROR: " + str(e))   
-     except urllib.error.URLError as e:
-         raise PostDataException("Could not delete url: " + str(url) + " ERROR: " + str(e))
      if not response:
          return False
      return response
 
 def getEncoding(response):
     encoding = 'utf-8'
-    if hasattr(response,'info'):
-        contentType = response.info()['Content-Type']
-        if '=' in contentType:
-            encoding = contentType.split('=')[1]
+    contentType = response.info()['Content-Type']
+    if '=' in contentType:
+        encoding = contentType.split('=')[1]
     return encoding
-
-def getResponse(url):
-    response = None
-    try:
-        response = manager.request('GET',url,headers=hdrs)
-    except:
-        raise ValueError("Could not load url: " + str(url))
-    if not response:
-        return False
-    return response
 
 def getContent(url):
     response = None
@@ -117,14 +66,7 @@ def getContent(url):
     
 def getJSONFromResponse(response):
     encoding = getEncoding(response)
-    content = False
-    if hasattr(response,'data'):
-        try:
-            content = json.loads(response.data.decode(encoding))
-        except json.decoder.JSONDecodeError as e:
-            print(str(e))
-        return content
-    return False
+    return json.loads(response.data.decode(encoding))
     
 def getRecordAttr(record,attr_name):
     if isinstance(record,dict):

@@ -1,6 +1,6 @@
 import os
 import json
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool 
 from datetime import datetime
 import time
 
@@ -10,35 +10,10 @@ import gleanomatic.Utils as Utils
 from gleanomatic.GleanomaticErrors import BadResourceURL, RSPathException, TargetURIException, AddDumpException, AddCapabilityException
 import gleanomatic.gleanomaticLogger as gl
 
-def addFromBatch(datum):
-    parts = datum.split("||")
-    params = {'uri': parts[0], 'sourceNamespace' : parts[1], 'setNamespace' : parts[2], 'batchTag': parts[3]}
-    resourceURI = str(appConfig.targetURI) + "/resource"
-    namespace = str(parts[1]) + "/" + str(parts[2])
-    response = Utils.postRSData(resourceURI,params)
-    respJ = Utils.getJSONFromResponse(response)
-    if not respJ:
-        print("Failed to post " + str(parts[0]))
-        Utils.postToLog({"LEVEL":"WARNING",
-                         "MSG": "Failed to post " + str(parts[0]), 
-                         "NAMESPACE": namespace,
-                         "BATCHTAG": str(parts[3])})
-        return True
-    if 'ID' in respJ:
-        print("Posted " + str(parts[0]))
-        Utils.postToLog({"LEVEL":"INFO",
-                         "MSG": "Posted " + str(parts[0]) + " to resource/" + str(respJ['ID']), 
-                         "NAMESPACE": namespace,
-                         "BATCHTAG": str(parts[3])})
-    else:
-        print("Failed to post " + str(parts[0]))
-        Utils.postToLog({"LEVEL":"WARNING",
-                         "MSG": "Failed to post " + str(parts[0]), 
-                         "NAMESPACE": namespace,
-                         "BATCHTAG": str(parts[3])})
-    return True
+logger = gl.logger
 
 # RSLoader - add external resources and capabilities to an ResourceSync endpoint
+
 
 class RSLoader:
 
@@ -49,41 +24,38 @@ class RSLoader:
     client = None
     createDump = False
     batchTag = None
-    logger = None
 
     def __init__(self,sourceNamespace,setNamespace,opts={}):
-        self.batchTag = Utils.getCurrentBatchTimestamp()
-        self.logger = gl.gleanomaticLogger(sourceNamespace,setNamespace,self.batchTag)
-        self.logger.info("Initializing RSLoader")
+        logger.info("Initializing RSLoader")
         self.targetURI = appConfig.targetURI
-        self.targetEndpoint = rc.RSRestClient(self.targetURI,self.logger)
+        self.targetEndpoint = rc.RSRestClient(self.targetURI)
         self.sourceNamespace = sourceNamespace
         self.setNamespace = setNamespace
         self.createDump = appConfig.createDump
-       
+        now = datetime.now()
+        self.batchTag = str(now.year)+str(now.month).zfill(2)+str(now.day).zfill(2)+str(now.hour).zfill(2)+str(now.minute).zfill(2)
         for key, value in opts.items():
             setattr(self, key, value)
 
     def run(self):
         pass
 
+    def msg(self,message):
+        return "[batchTag:" + str(self.batchTag) + "] " + str(message)
+
     def addResource(self,uri):
         contents = None
         try:
             contents, message = self.targetEndpoint.addResource(uri,self.sourceNamespace,self.setNamespace,self.batchTag)
         except Exception as e:
-            self.logger.warning("Could not add resource uri: " + str(uri) + " ERROR: " + str(e))
+            logger.warning(self.msg("Could not add resource uri: " + str(uri)) + " ERROR: " + str(e))
         if not contents:
-            self.logger.warning("No contents returned for uri: " + str(uri))
+            logger.warning(self.msg("No contents returned for uri: " + str(uri)))
         return contents
         
     def addBatch(self, uris):
-        data = []
-        for uri in uris:
-            data.append(str(uri) + "||" + str(self.sourceNamespace) + "||" + str(self.setNamespace) + "||" + str(self.batchTag))
-        psize = cpu_count()*1
-        pool = Pool(psize)
-        pool.map(addFromBatch,data)
+        pool = Pool()
+        pool.map(self.addResource, uris)
         pool.close() 
         pool.join()
         
@@ -95,7 +67,7 @@ class RSLoader:
         try:
             contents, message = self.targetEndpoint.addCapability(url,self.sourceNamespace,self.setNamespace,capType)
         except Exception as e:
-            self.logger.critical("Could not add capability.")
+            logger.critical(self.msg("Could not add capability."))
             raise AddCapabilityException("Could not add capability",e)
         return contents
     
@@ -104,7 +76,7 @@ class RSLoader:
             try:
                 contents = self.targetEndpoint.addDump(self.batchTag,self.sourceNamespace,self.setNamespace)
             except Exception as e:
-                self.logger.critical("Could not add dump.")
+                logger.critical(self.msg("Could not add dump."))
                 raise AddDumpException("Could not add dump.",e)
             zipURI = contents
             while True:
@@ -116,11 +88,11 @@ class RSLoader:
                     time.sleep(60)
                     retries = retries + 1
                     if retries > 60:
-                        self.logger.critical("Too many retries waiting for " + str(zipURI))
+                        logger.critical(self.msg("Too many retries waiting for " + str(zipURI)))
                         raise AddDumpException("Too many retries waiting for " + str(zipURI))
                     continue
                 if uriResponse:
-                    self.logger.info("Found zipURI.")
+                    logger.info("Found zipURI.")
                     break
             result = self.addCapability(zipURI,'dump')    
             return result
@@ -131,4 +103,5 @@ class RSLoader:
         return manifest
 
 if __name__ == "__main__":
-    pass
+    logger.setLevel(logging.DEBUG)
+

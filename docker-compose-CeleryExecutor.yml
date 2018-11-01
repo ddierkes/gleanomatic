@@ -3,6 +3,8 @@ services:
     redis:
         image: 'redis:3.2.7'
         # command: redis-server --requirepass redispass
+        networks:
+          - gleanomatic
 
     postgres:
         image: postgres:9.6
@@ -10,6 +12,12 @@ services:
             - POSTGRES_USER=airflow
             - POSTGRES_PASSWORD=airflow
             - POSTGRES_DB=airflow
+        # Uncomment these lines to persist data on the local filesystem.
+        #     - PGDATA=/var/lib/postgresql/data/pgdata
+        # volumes:
+        #     - ./pgdata:/var/lib/postgresql/data/pgdata
+        networks:
+          - gleanomatic
 
     webserver:
         build: .
@@ -22,12 +30,21 @@ services:
             - LOAD_EX=n
             - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - EXECUTOR=Celery
+            - LOG_DEST=${LOG_DEST}
+            - LOG_FILE=${LOG_FILE}
+            - LOG_LEVEL=${LOG_LEVEL}
+            - LOG_URL=${LOG_URL}
+            - TRANSFORM_URI=${TRANSFORM_URI}
+            - USER_AGENT=${USER_AGENT}
         volumes:
             - ${DAGS_PATH}:${DAGS_DEST}
             - ${LIB_PATH}:${LIB_DEST}
+            - ${LOG_PATH}:${LOG_DEST}
             - ${RS_PATH}:${RS_DEST}
         ports:
-            - "8888:8080"
+            - "8080:8080"
+        networks:
+          - gleanomatic
         command: webserver
         healthcheck:
             test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
@@ -36,19 +53,28 @@ services:
             retries: 3
 
     flower:
-        image: gleanomatic_core
+        image: gleanomatic_core 
         restart: always
         depends_on:
             - redis
         environment:
             - EXECUTOR=Celery
             # - REDIS_PASSWORD=redispass
+            - LOG_DEST=${LOG_DEST}
+            - LOG_FILE=${LOG_FILE}
+            - LOG_LEVEL=${LOG_LEVEL}
+            - LOG_URL=${LOG_URL}
+            - TRANSFORM_URI=${TRANSFORM_URI}
+            - USER_AGENT=${USER_AGENT}
         volumes:
             - ${DAGS_PATH}:${DAGS_DEST}
             - ${LIB_PATH}:${LIB_DEST}
+            - ${LOG_PATH}:${LOG_DEST}
             - ${RS_PATH}:${RS_DEST}
         ports:
-            - "5678:5555"
+            - "5555:5555"
+        networks:
+          - gleanomatic
         command: flower
 
     scheduler:
@@ -60,22 +86,40 @@ services:
             - LOAD_EX=n
             - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - EXECUTOR=Celery
+            - LOG_DEST=${LOG_DEST}
+            - LOG_FILE=${LOG_FILE}
+            - LOG_LEVEL=${LOG_LEVEL}
+            - LOG_URL=${LOG_URL}
+            - TRANSFORM_URI=${TRANSFORM_URI}
+            - USER_AGENT=${USER_AGENT}
         volumes:
             - ${DAGS_PATH}:${DAGS_DEST}
             - ${LIB_PATH}:${LIB_DEST}
+            - ${LOG_PATH}:${LOG_DEST}
             - ${RS_PATH}:${RS_DEST}
+        networks:
+          - gleanomatic
         command: scheduler
 
     worker:
-        image: gleanomatic_core
+        image: gleanomatic_core 
         restart: always
         depends_on:
             - scheduler
         environment:
             - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - EXECUTOR=Celery
+            - LOG_DEST=${LOG_DEST}
+            - LOG_FILE=${LOG_FILE}
+            - LOG_LEVEL=${LOG_LEVEL}
+            - LOG_URL=${LOG_URL}
+            - TRANSFORM_URI=${TRANSFORM_URI}
+            - USER_AGENT=${USER_AGENT}
         volumes:
             - ${DAGS_PATH}:${DAGS_DEST}
             - ${LIB_PATH}:${LIB_DEST}
+            - ${LOG_PATH}:${LOG_DEST}
             - ${RS_PATH}:${RS_DEST}
+        networks:
+          - gleanomatic
         command: worker
