@@ -4,6 +4,7 @@ from datetime import datetime
 import certifi
 from urllib3 import PoolManager
 import json
+from xmltodict import parse
 from gleanomatic.GleanomaticErrors import URIException, PostDataException
 from gleanomatic.configure import appConfig
 
@@ -53,7 +54,7 @@ def postToLog(log):
     except Exception as e:
         print(str(e))
     return True
-            
+
 
 def postRSData(url,params):
      response = None
@@ -135,4 +136,24 @@ def getRecordAttr(record,attr_name):
     except AttributeError:
         return None
     return result
+
+def jsonToDict(jsonStr):
+    return json.loads(jsonStr)
+    
+    
+def getStaticPath(resource):
+    batchPath = "/static/" + str(resource.sourceNamespace) + "/" + str(resource.setNamespace) + "/" + str(resource.batchTag)
+    IDName = np.base_repr(resource.ID, 36)
+    IDPath = IDName.zfill(4)
+    relativeDir = "/" + str(IDPath[0]) + "/" + str(IDPath[1]) + "/" + str(IDPath[2]) + "/" + str(IDPath[3])
+    fullpath = batchPath + relativeDir + "/" + IDName
+    return fullpath
+    
+def getDictFromXML(xml,namespaces=[]):
+    try:
+        result = parse(xml)
+    except Exception as e:
+        raise Exception("Could not parse XML to dictionary. ERROR: " + str(e))
+    return result
+          
  
