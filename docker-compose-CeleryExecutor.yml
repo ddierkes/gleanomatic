@@ -42,7 +42,7 @@ services:
             - ${LOG_PATH}:${LOG_DEST}
             - ${RS_PATH}:${RS_DEST}
         ports:
-            - "8080:8080"
+            - "8282:8080"
         networks:
           - gleanomatic
         command: webserver
